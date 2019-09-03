@@ -11824,6 +11824,11 @@ react-native-scrollable-mixin@^1.0.0:
   resolved "https://registry.yarnpkg.com/react-native-scrollable-mixin/-/react-native-scrollable-mixin-1.0.1.tgz#34a32167b64248594154fd0d6a8b03f22740548e"
   integrity sha1-NKMhZ7ZCSFlBVP0NaosD8idAVI4=
 
+react-native-shared-element@0.4.3:
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/react-native-shared-element/-/react-native-shared-element-0.4.3.tgz#8c750598872ee604e6d1f62b9858eb5faa73a4df"
+  integrity sha512-NV5Xcddeg7h46NPEVuyJMdjZtZP3AQg+RBUZMSSdi7YSOwxQWHKSnyWwOYNHaDBM5JaOscRZcqnoMpRPnBGgOw==
+
 react-native-svg@~9.5.1:
   version "9.5.3"
   resolved "https://registry.yarnpkg.com/react-native-svg/-/react-native-svg-9.5.3.tgz#2389f3ffd700c6441166496a1aeade31ead89c59"
@@ -11920,6 +11925,13 @@ react-navigation-material-bottom-tabs@1.1.1:
     hoist-non-react-statics "^2.5.0"
     prop-types "^15.6.0"
     react-navigation-tabs "~1.2.0"
+
+react-navigation-sharedelement@^0.4.3:
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/react-navigation-sharedelement/-/react-navigation-sharedelement-0.4.3.tgz#98386e1ba164e8428f19da9673d23773d166e8b6"
+  integrity sha512-d+5QRTAUZZw7+YLV+SyYGjDWBXBkBkJHzK7IfNEds4S6FMp4LRvl3Rg5Hf2VmiLhRTUHLQDzLTkmW8AC632i0w==
+  dependencies:
+    hoist-non-react-statics "^3.3.0"
 
 react-navigation-stack@~1.5.0:
   version "1.5.0"
