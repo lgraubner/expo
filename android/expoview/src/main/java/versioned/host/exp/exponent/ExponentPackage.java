@@ -46,6 +46,7 @@ import versioned.host.exp.exponent.modules.api.components.maps.MapsPackage;
 import versioned.host.exp.exponent.modules.api.components.svg.SvgPackage;
 import versioned.host.exp.exponent.modules.api.components.webview.RNCWebViewModule;
 import versioned.host.exp.exponent.modules.api.components.webview.RNCWebViewPackage;
+import versioned.host.exp.exponent.modules.api.components.sharedelement.RNSharedElementPackage;
 import versioned.host.exp.exponent.modules.api.netinfo.NetInfoModule;
 import versioned.host.exp.exponent.modules.api.notifications.NotificationsModule;
 import versioned.host.exp.exponent.modules.api.reanimated.ReanimatedModule;
@@ -71,6 +72,9 @@ public class ExponentPackage implements ReactPackage {
   private final boolean mIsKernel;
   private final Map<String, Object> mExperienceProperties;
   private final JSONObject mManifest;
+
+  // Shared element package shares a "node manager" between native module and view manager
+  private final RNSharedElementPackage mSharedElementPackage = new RNSharedElementPackage();
 
   private final ScopedModuleRegistryAdapter mModuleRegistryAdapter;
 
@@ -180,6 +184,9 @@ public class ExponentPackage implements ReactPackage {
         SvgPackage svgPackage = new SvgPackage();
         nativeModules.addAll(svgPackage.createNativeModules(reactContext));
 
+        // Add from shared instance
+        nativeModules.addAll(mSharedElementPackage.createNativeModules(reactContext));
+
         // Call to create native modules has to be at the bottom --
         // -- ExpoModuleRegistryAdapter uses the list of native modules
         // to create Bindings for internal modules.
@@ -206,7 +213,9 @@ public class ExponentPackage implements ReactPackage {
         new RNGestureHandlerPackage(),
         new RNScreensPackage(),
         new RNCWebViewPackage(),
-        new SafeAreaContextPackage()
+        new SafeAreaContextPackage(),
+        // Add from shared instance
+        mSharedElementPackage
     ));
 
     viewManagers.addAll(mModuleRegistryAdapter.createViewManagers(reactContext));
