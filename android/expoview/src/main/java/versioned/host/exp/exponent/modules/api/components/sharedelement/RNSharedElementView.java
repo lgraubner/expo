@@ -3,6 +3,7 @@ package versioned.host.exp.exponent.modules.api.components.sharedelement;
 import android.util.Log;
 import android.view.View;
 import android.graphics.Rect;
+import android.graphics.RectF;
 
 import com.facebook.react.uimanager.ThemedReactContext;
 
@@ -24,11 +25,16 @@ class RNSharedElementView extends View {
         return mViewType == RNSharedElementDrawable.ViewType.GENERIC;
     }
 
+    void reset() {
+      setAlpha(0.0f);
+    }
+
     void updateViewAndDrawable(
-            Rect layout,
-            Rect parentLayout,
-            RNSharedElementContent content,
+            RectF layout,
+            RectF parentLayout,
             Rect originalLayout,
+            Rect originalFrame,
+            RNSharedElementContent content,
             RNSharedElementStyle style,
             float alpha,
             RNSharedElementResize resize,
@@ -48,11 +54,11 @@ class RNSharedElementView extends View {
         }
 
         // Update view size/position/scale
-        int width = layout.width();
-        int height = layout.height();
+        float width = layout.width();
+        float height = layout.height();
         if (useGPUScaling) {
-            int originalWidth = originalLayout.width();
-            int originalHeight = originalLayout.height();
+            int originalWidth = originalFrame.width();
+            int originalHeight = originalFrame.height();
 
             // Update view
             layout(0, 0, originalWidth, originalHeight);
@@ -60,8 +66,8 @@ class RNSharedElementView extends View {
             setTranslationY(layout.top - parentLayout.top);
 
             // Update scale
-            float scaleX = (float) width / (float) originalWidth;
-            float scaleY = (float) height / (float) originalHeight;
+            float scaleX = width / (float) originalWidth;
+            float scaleY = height / (float) originalHeight;
             if (!Float.isInfinite(scaleX) && !Float.isNaN(scaleX) && !Float.isInfinite(scaleY) && !Float.isNaN(scaleY)) {
 
                 // Determine si
@@ -71,8 +77,8 @@ class RNSharedElementView extends View {
                         break;
                     case CLIP:
                     case NONE:
-                        scaleX = 1.0f;
-                        scaleY = 1.0f;
+                        scaleX = (float) originalWidth / (float) originalLayout.width();
+                        scaleY = (float) originalHeight / (float) originalLayout.height();
                         break;
                 }
 
@@ -106,7 +112,7 @@ class RNSharedElementView extends View {
         } else {
 
             // Update view
-            layout(0, 0, width, height);
+            layout(0, 0, (int)Math.ceil(width), (int)Math.ceil(height));
             setTranslationX(layout.left - parentLayout.left);
             setTranslationY(layout.top - parentLayout.top);
         }

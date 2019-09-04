@@ -5,6 +5,7 @@ import android.view.View;
 import android.view.ViewParent;
 import android.view.ViewGroup;
 import android.graphics.Rect;
+import android.graphics.Matrix;
 
 class RNSharedElementTransitionItem {
     static private String LOG_TAG = "RNSharedElementTransitionItem";
@@ -18,6 +19,7 @@ class RNSharedElementTransitionItem {
     private boolean mNeedsContent;
     private RNSharedElementContent mContent;
     private Rect mClippedLayoutCache;
+    private boolean mHasCalledOnMeasure;
 
     RNSharedElementTransitionItem(RNSharedElementNodeManager nodeManager, String name) {
         mNodeManager = nodeManager;
@@ -29,6 +31,7 @@ class RNSharedElementTransitionItem {
         mNeedsContent = false;
         mContent = null;
         mClippedLayoutCache = null;
+        mHasCalledOnMeasure = false;
     }
 
     String getName() {
@@ -38,6 +41,7 @@ class RNSharedElementTransitionItem {
     void setHidden(boolean hidden) {
         if (mHidden == hidden) return;
         mHidden = hidden;
+        if (mNode == null) return;
         if (hidden) {
             mNode.addHideRef();
         } else {
@@ -63,11 +67,13 @@ class RNSharedElementTransitionItem {
             mNodeManager.release(mNode);
         }
         mNode = node;
-        mHidden = false;
         mNeedsStyle = node != null;
         mStyle = null;
         mNeedsContent = (node != null);
         mContent = null;
+        if (mNode != null) {
+            if (mHidden) mNode.addHideRef();
+        }
     }
 
     boolean getNeedsStyle() {
@@ -102,6 +108,14 @@ class RNSharedElementTransitionItem {
         return mContent;
     }
 
+    void setHasCalledOnMeasure(boolean hasCalledOnMeasure) {
+        mHasCalledOnMeasure = hasCalledOnMeasure;
+    }
+
+    boolean getHasCalledOnMeasure() {
+        return mHasCalledOnMeasure;
+    }
+
     View getView() {
         return (mNode != null) ? mNode.getResolvedView() : null;
     }
@@ -109,10 +123,15 @@ class RNSharedElementTransitionItem {
     Rect getClippedLayout() {
         if (mClippedLayoutCache != null) return mClippedLayoutCache;
         if (mStyle == null) return null;
+
         View view = getView();
         View ancestorView = mNode.getAncestorView();
-        int[] ancestorLocation = new int[2];
-        ancestorView.getLocationOnScreen(ancestorLocation);
+
+        // Get ancestor transform
+        float[] f = new float[9];
+        mStyle.ancestorTransform.getValues(f);
+        int ancestorTranslateX = (int) f[Matrix.MTRANS_X];
+        int ancestorTranslateY = (int) f[Matrix.MTRANS_Y];
         
         // Get visible area (some parts may be clipped in a scrollview or something)
         Rect clippedLayout = new Rect(mStyle.layout);
@@ -123,8 +142,8 @@ class RNSharedElementTransitionItem {
             if (!(parentView instanceof ViewGroup)) break;
             ViewGroup viewGroup = (ViewGroup) parentView;
             viewGroup.getLocationOnScreen(location);
-            location[0] -= ancestorLocation[0];
-            location[1] -= ancestorLocation[1];
+            location[0] -= ancestorTranslateX;
+            location[1] -= ancestorTranslateY;
 
             bounds.left = location[0];
             bounds.top = location[1];

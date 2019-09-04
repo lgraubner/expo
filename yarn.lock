@@ -11824,10 +11824,10 @@ react-native-scrollable-mixin@^1.0.0:
   resolved "https://registry.yarnpkg.com/react-native-scrollable-mixin/-/react-native-scrollable-mixin-1.0.1.tgz#34a32167b64248594154fd0d6a8b03f22740548e"
   integrity sha1-NKMhZ7ZCSFlBVP0NaosD8idAVI4=
 
-react-native-shared-element@0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/react-native-shared-element/-/react-native-shared-element-0.4.3.tgz#8c750598872ee604e6d1f62b9858eb5faa73a4df"
-  integrity sha512-NV5Xcddeg7h46NPEVuyJMdjZtZP3AQg+RBUZMSSdi7YSOwxQWHKSnyWwOYNHaDBM5JaOscRZcqnoMpRPnBGgOw==
+react-native-shared-element@~0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/react-native-shared-element/-/react-native-shared-element-0.5.0.tgz#a1c0e5c8be4e781351d50a752cd36be99b82bf5a"
+  integrity sha512-LZ8Kv/5f4Ir8oGEOaiNk6tM3iJIh9DggH3rqFU5S/wbE10coYCQlw0xZU0ulPClpcKYbBublTkqBegjgk5WisQ==
 
 react-native-svg@~9.5.1:
   version "9.5.3"
@@ -11926,10 +11926,10 @@ react-navigation-material-bottom-tabs@1.1.1:
     prop-types "^15.6.0"
     react-navigation-tabs "~1.2.0"
 
-react-navigation-sharedelement@^0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/react-navigation-sharedelement/-/react-navigation-sharedelement-0.4.3.tgz#98386e1ba164e8428f19da9673d23773d166e8b6"
-  integrity sha512-d+5QRTAUZZw7+YLV+SyYGjDWBXBkBkJHzK7IfNEds4S6FMp4LRvl3Rg5Hf2VmiLhRTUHLQDzLTkmW8AC632i0w==
+react-navigation-sharedelement@^0.4.5:
+  version "0.4.5"
+  resolved "https://registry.yarnpkg.com/react-navigation-sharedelement/-/react-navigation-sharedelement-0.4.5.tgz#a67af33913d4a85e0d352346ae5d6966706751e9"
+  integrity sha512-QgjV/czqXevASAX/FidbfrTpic0bdJZRKnWXPxGtr+XGAu/uGTsx/Rx6YtxL/xcNQhx5P/Pr7zJu6aTEW1a3ww==
   dependencies:
     hoist-non-react-statics "^3.3.0"
 

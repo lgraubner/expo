@@ -2,21 +2,24 @@ package versioned.host.exp.exponent.modules.api.components.sharedelement;
 
 import java.util.Locale;
 
+import android.util.Log;
 import android.graphics.Rect;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.support.v4.text.TextUtilsCompat;
-import android.support.v4.view.ViewCompat;
 import android.view.View;
 import android.view.ViewParent;
+import android.content.Context;
 
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.drawee.drawable.ScalingUtils.ScaleType;
 import com.facebook.drawee.drawable.ScalingUtils.InterpolatingScaleType;
 import com.facebook.react.views.image.ImageResizeMode;
+import com.facebook.react.modules.i18nmanager.I18nUtil;
 
 public class RNSharedElementStyle {
+    static private String LOG_TAG = "RNSharedElementStyle";
+
     static int PROP_OPACITY = 1 << 0;
     static int PROP_ELEVATION = 1 << 1;
     static int PROP_BACKGROUND_COLOR = 1 << 2;
@@ -40,6 +43,7 @@ public class RNSharedElementStyle {
     Rect layout = new Rect(); // absolute layout on screen
     Rect frame = new Rect(); // frame rect relative to parent
     Matrix transform = new Matrix();
+    Matrix ancestorTransform = new Matrix();
     ScaleType scaleType = ScaleType.FIT_XY;
     int backgroundColor = Color.TRANSPARENT;
     float opacity = 1;
@@ -56,7 +60,7 @@ public class RNSharedElementStyle {
         // nop
     }
 
-    RNSharedElementStyle(ReadableMap config) {
+    RNSharedElementStyle(ReadableMap config, Context context) {
         // Pre-fill the style with the style-config
         if (config.hasKey("opacity")) opacity = (float) config.getDouble("opacity");
         if (config.hasKey("backgroundColor")) backgroundColor = config.getInt("backgroundColor");
@@ -67,7 +71,7 @@ public class RNSharedElementStyle {
         if (config.hasKey("elevation")) elevation = PixelUtil.toPixelFromDIP((float) config.getDouble("elevation"));
 
         // Border-radius
-        boolean isRTL = TextUtilsCompat.getLayoutDirectionFromLocale(Locale.getDefault()) == ViewCompat.LAYOUT_DIRECTION_RTL;
+        boolean isRTL = I18nUtil.getInstance().isRTL(context);
         if (config.hasKey("borderRadius")) {
             float borderRadius = PixelUtil.toPixelFromDIP((float) config.getDouble("borderRadius"));
             borderTopLeftRadius = borderRadius;
@@ -130,13 +134,14 @@ public class RNSharedElementStyle {
         return scaleType;
     }
 
-    static Matrix getAbsoluteViewTransform(View view) {
+    static Matrix getAbsoluteViewTransform(View view, boolean failIfNotMounted) {
         Matrix matrix = new Matrix(view.getMatrix());
         float[] vals = new float[9];
         matrix.getValues(vals);
 
         float[] vals2 = new float[9];
         ViewParent parentView = view.getParent();
+
         while (parentView != null && parentView instanceof View) {
             Matrix parentMatrix = ((View)parentView).getMatrix();
             parentMatrix.getValues(vals2);
@@ -153,7 +158,9 @@ public class RNSharedElementStyle {
 
             parentView = parentView.getParent();
         }
-        if (parentView == null) return null;
+        if (parentView == null && failIfNotMounted) {
+          return null;
+        }
         matrix.setValues(vals);
         return matrix;
     }

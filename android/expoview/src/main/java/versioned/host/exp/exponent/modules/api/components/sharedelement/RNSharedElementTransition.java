@@ -7,18 +7,22 @@ import android.os.Build;
 import android.util.Log;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.ThemedReactContext;
-import com.facebook.react.uimanager.UIBlock;
-import com.facebook.react.uimanager.UIManagerModule;
-import com.facebook.react.uimanager.NativeViewHierarchyManager;
+import com.facebook.react.uimanager.events.RCTEventEmitter;
 
 public class RNSharedElementTransition extends ViewGroup {
     static private String LOG_TAG = "RNSharedElementTransition";
+    static private Rect EMPTY_RECT = new Rect();
 
     enum Item {
         START(0),
@@ -35,6 +39,7 @@ public class RNSharedElementTransition extends ViewGroup {
     private float mNodePosition = 0.0f;
     private boolean mReactLayoutSet = false;
     private boolean mInitialLayoutPassCompleted = false;
+    private boolean mInitialNodePositionSet = false;
     private ArrayList<RNSharedElementTransitionItem> mItems = new ArrayList<RNSharedElementTransitionItem>();
     private int[] mParentOffset = new int[2];
     private boolean mRequiresClipping = false;
@@ -87,8 +92,9 @@ public class RNSharedElementTransition extends ViewGroup {
 
     public void setNodePosition(final float nodePosition) {
         if (mNodePosition != nodePosition) {
-            mNodePosition = nodePosition;
             //Log.d(LOG_TAG, "setNodePosition " + nodePosition + ", mInitialLayoutPassCompleted: " + mInitialLayoutPassCompleted);
+            mNodePosition = nodePosition;
+            mInitialNodePositionSet = true;            
             updateLayout();
         }
     }
@@ -170,41 +176,52 @@ public class RNSharedElementTransition extends ViewGroup {
         RNSharedElementTransitionItem startItem = mItems.get(Item.START.getValue());
         RNSharedElementTransitionItem endItem = mItems.get(Item.END.getValue());
 
-        // Get styles & content
+        // Get styles
         RNSharedElementStyle startStyle = startItem.getStyle();
         RNSharedElementStyle endStyle = endItem.getStyle();
         if ((startStyle == null) && (endStyle == null)) return;
+
+        // Get content
         RNSharedElementContent startContent = startItem.getContent();
         RNSharedElementContent endContent = endItem.getContent();
+        if ((mAnimation == RNSharedElementAnimation.MOVE) && (startContent == null) && (endContent != null)) {
+            startContent = endContent;
+        }
 
         // Get layout
-        Rect startLayout = (startStyle != null) ? startStyle.layout : new Rect();
-        Rect endLayout = (endStyle != null) ? endStyle.layout : new Rect();
-        Rect parentLayout = new Rect(startLayout);
-        parentLayout.union(endLayout);
+        Rect startLayout = (startStyle != null) ? startStyle.layout : EMPTY_RECT;
+        Rect startFrame = (startStyle != null) ? startStyle.frame : EMPTY_RECT;
+        Rect endLayout = (endStyle != null) ? endStyle.layout : EMPTY_RECT;
+        Rect endFrame = (endStyle != null) ? endStyle.frame : EMPTY_RECT;
+        RectF parentLayout = new RectF(startLayout);
+        parentLayout.union(new RectF(endLayout));
 
         // Get clipped areas
-        Rect startClippedLayout = (startStyle != null) ? startItem.getClippedLayout() : new Rect();
+        Rect startClippedLayout = (startStyle != null) ? startItem.getClippedLayout() : EMPTY_RECT;
         Rect startClipInsets = getClipInsets(startLayout, startClippedLayout);
-        Rect endClippedLayout = (endStyle != null) ? endItem.getClippedLayout() : new Rect();
+        Rect endClippedLayout = (endStyle != null) ? endItem.getClippedLayout() : EMPTY_RECT;
         Rect endClipInsets = getClipInsets(endLayout, endClippedLayout);
 
         // Get interpolated layout
-        Rect interpolatedLayout;
-        Rect interpolatedClipInsets;
+        RectF interpolatedLayout;
+        RectF interpolatedClipInsets;
         RNSharedElementStyle interpolatedStyle;
         if ((startStyle != null) && (endStyle != null)) {
             interpolatedLayout = getInterpolatedLayout(startLayout, endLayout, mNodePosition);
             interpolatedClipInsets = getInterpolatedClipInsets(parentLayout, startClipInsets, startClippedLayout, endClipInsets, endClippedLayout, mNodePosition);
             interpolatedStyle = getInterpolatedStyle(startStyle, startContent, endStyle, endContent, mNodePosition);
         } else if (startStyle != null) {
-            interpolatedLayout = startLayout;
+            interpolatedLayout = new RectF(startLayout);
             interpolatedStyle = startStyle;
-            interpolatedClipInsets = startClipInsets;
+            interpolatedClipInsets = new RectF(startClipInsets);
         } else {
-            interpolatedLayout = endLayout;
+            if (!mInitialNodePositionSet) {
+                mNodePosition = 1.0f;
+                mInitialNodePositionSet = true;
+            }
+            interpolatedLayout = new RectF(endLayout);
             interpolatedStyle = endStyle;
-            interpolatedClipInsets = endClipInsets;
+            interpolatedClipInsets = new RectF(endClipInsets);
         }
 
         // Apply clipping insets
@@ -216,7 +233,7 @@ public class RNSharedElementTransition extends ViewGroup {
         // Calculate clipped layout
         mRequiresClipping = !parentLayout.contains(interpolatedLayout);
 
-        //Log.d(LOG_TAG, "mRequiresClipping: " +mRequiresClipping + ", " + endClippedLayout + ", " + endClipInsets);
+        //Log.d(LOG_TAG, "updateLayout: " + mNodePosition);
 
         // Update outer viewgroup layout. The outer viewgroup hosts 2 inner views
         // which draw the content & elevation. The outer viewgroup performs additional
@@ -225,8 +242,8 @@ public class RNSharedElementTransition extends ViewGroup {
         super.layout(
                 -mParentOffset[0],
                 -mParentOffset[1],
-            parentLayout.width() - mParentOffset[0],
-            parentLayout.height() - mParentOffset[1]
+          (int) Math.ceil(parentLayout.width() - mParentOffset[0]),
+          (int) Math.ceil(parentLayout.height() - mParentOffset[1])
         );
         setTranslationX(parentLayout.left);
         setTranslationY(parentLayout.top);
@@ -237,11 +254,12 @@ public class RNSharedElementTransition extends ViewGroup {
         switch (mAnimation) {
         case MOVE:
             startAlpha = interpolatedStyle.opacity;
-            endAlpha = 0.0f;
+            endAlpha = (startStyle == null) ? interpolatedStyle.opacity : 0.0f;
             break;
         case FADE:
             startAlpha = ((startStyle != null) ? startStyle.opacity : 1) * (1 - mNodePosition);
             endAlpha = ((endStyle != null) ? endStyle.opacity : 1) * mNodePosition;
+            break;
         case FADE_IN:
             startAlpha = 0.0f;
             endAlpha = ((endStyle != null) ? endStyle.opacity : 1) * mNodePosition;
@@ -257,8 +275,9 @@ public class RNSharedElementTransition extends ViewGroup {
             mStartView.updateViewAndDrawable(
                 interpolatedLayout,
                 parentLayout,
-                startContent,
                 startLayout,
+                startFrame,
+                startContent,
                 interpolatedStyle,
                 startAlpha,
                 mResize,
@@ -268,12 +287,16 @@ public class RNSharedElementTransition extends ViewGroup {
         }
         
         // Render the end view as well for the "cross-fade" animations
-        if ((mAnimation == RNSharedElementAnimation.FADE) || (mAnimation == RNSharedElementAnimation.FADE_IN)) {
+        if ((mAnimation == RNSharedElementAnimation.FADE)
+          || (mAnimation == RNSharedElementAnimation.FADE_IN)
+          || ((mAnimation == RNSharedElementAnimation.MOVE) && (startStyle == null))
+        ) {
             mEndView.updateViewAndDrawable(
                 interpolatedLayout,
                 parentLayout,
-                endContent,
                 endLayout,
+                endFrame,
+                endContent,
                 interpolatedStyle,
                 endAlpha,
                 mResize,
@@ -293,14 +316,28 @@ public class RNSharedElementTransition extends ViewGroup {
                     mEndView.setOutlineSpotShadowColor(Color.argb(endAlpha, 0, 0, 0));
                 }
             }
+        } else {
+          mEndView.reset();
+        }
+
+        // Fire events
+        if ((startStyle != null) && !startItem.getHasCalledOnMeasure()) {
+            startItem.setHasCalledOnMeasure(true);
+            fireMeasureEvent("startNode", startItem, startClippedLayout);
+        }
+        if ((endStyle != null) && !endItem.getHasCalledOnMeasure()) {
+            endItem.setHasCalledOnMeasure(true);
+            fireMeasureEvent("endNode", endItem, endClippedLayout);
         }
     }
 
     private void updateNodeVisibility() {
+      RNSharedElementTransitionItem startItem = mItems.get(Item.START.getValue());
+      RNSharedElementTransitionItem endItem = mItems.get(Item.END.getValue());
+        boolean hidden = mInitialLayoutPassCompleted
+            && (((startItem.getStyle() != null)  && (startItem.getContent() != null))
+            || ((endItem.getStyle() != null)  && (endItem.getContent() != null)));
         for (RNSharedElementTransitionItem item : mItems) {
-            boolean hidden = mInitialLayoutPassCompleted &&
-                (item.getStyle() != null) &&
-                (item.getContent() != null);
             if (hidden && (mAnimation == RNSharedElementAnimation.FADE_IN) && item.getName().equals("start")) hidden = false;
             if (hidden && (mAnimation == RNSharedElementAnimation.FADE_OUT) && item.getName().equals("end")) hidden = false;
             item.setHidden(hidden);
@@ -316,14 +353,14 @@ public class RNSharedElementTransition extends ViewGroup {
         );
     }
 
-    private Rect getInterpolatedClipInsets(
-        Rect interpolatedLayout,
+    private RectF getInterpolatedClipInsets(
+        RectF interpolatedLayout,
         Rect startClipInsets,
         Rect startClippedLayout,
         Rect endClipInsets,
         Rect endClippedLayout,
         float position) {
-        Rect clipInsets = new Rect();
+        RectF clipInsets = new RectF();
 
         // Top
         if ((endClipInsets.top == 0) && (startClipInsets.top != 0) && (startClippedLayout.top <= endClippedLayout.top)) {
@@ -331,7 +368,7 @@ public class RNSharedElementTransition extends ViewGroup {
         } else if ((startClipInsets.top == 0) && (endClipInsets.top != 0) && (endClippedLayout.top <= startClippedLayout.top)) {
             clipInsets.top = Math.max(0, endClippedLayout.top - interpolatedLayout.top);
         } else {
-            clipInsets.top = (int) (startClipInsets.top + ((endClipInsets.top - startClipInsets.top) * position));
+            clipInsets.top = (startClipInsets.top + ((endClipInsets.top - startClipInsets.top) * position));
         }
 
         // Bottom
@@ -340,7 +377,7 @@ public class RNSharedElementTransition extends ViewGroup {
         } else if ((startClipInsets.bottom == 0) && (endClipInsets.bottom != 0) && (endClippedLayout.bottom >= startClippedLayout.bottom)) {
             clipInsets.bottom = Math.max(0, interpolatedLayout.bottom - endClippedLayout.bottom);
         } else {
-            clipInsets.bottom = (int) (startClipInsets.bottom + ((endClipInsets.bottom - startClipInsets.bottom) * position));
+            clipInsets.bottom = (startClipInsets.bottom + ((endClipInsets.bottom - startClipInsets.bottom) * position));
         }
 
         // Left
@@ -349,7 +386,7 @@ public class RNSharedElementTransition extends ViewGroup {
         } else if ((startClipInsets.left == 0) && (endClipInsets.left != 0) && (endClippedLayout.left <= startClippedLayout.left)) {
             clipInsets.left = Math.max(0, endClippedLayout.left - interpolatedLayout.left);
         } else {
-            clipInsets.left = (int) (startClipInsets.left + ((endClipInsets.left - startClipInsets.left) * position));
+            clipInsets.left = (startClipInsets.left + ((endClipInsets.left - startClipInsets.left) * position));
         }
 
          // Right
@@ -358,18 +395,18 @@ public class RNSharedElementTransition extends ViewGroup {
         } else if ((startClipInsets.right == 0) && (endClipInsets.right != 0) && (endClippedLayout.right >= startClippedLayout.right)) {
             clipInsets.right = Math.max(0, interpolatedLayout.right - endClippedLayout.right);
         } else {
-            clipInsets.right = (int) (startClipInsets.right + ((endClipInsets.right - startClipInsets.right) * position));
+            clipInsets.right = (startClipInsets.right + ((endClipInsets.right - startClipInsets.right) * position));
         }
 
         return clipInsets;
     }
 
-    private Rect getInterpolatedLayout(Rect layout1, Rect layout2, float position) {
-        return new Rect(
-            (int) (layout1.left + ((layout2.left - layout1.left) * position)),
-            (int) (layout1.top + ((layout2.top - layout1.top) * position)),
-            (int) (layout1.right + ((layout2.right - layout1.right) * position)),
-            (int) (layout1.bottom + ((layout2.bottom - layout1.bottom) * position))
+    private RectF getInterpolatedLayout(Rect layout1, Rect layout2, float position) {
+        return new RectF(
+            (layout1.left + ((layout2.left - layout1.left) * position)),
+            (layout1.top + ((layout2.top - layout1.top) * position)),
+            (layout1.right + ((layout2.right - layout1.right) * position)),
+            (layout1.bottom + ((layout2.bottom - layout1.bottom) * position))
         );
     }
 
@@ -412,45 +449,43 @@ public class RNSharedElementTransition extends ViewGroup {
         return result;
     }
 
-    private void fireMeasureEvent() {
-        /*ReactContext reactContext = (ReactContext)getContext();
-        WritableMap eventData = Arguments.createMap();
+    private void fireMeasureEvent(String name, RNSharedElementTransitionItem item, Rect clippedLayout) {
+        ReactContext reactContext = (ReactContext)getContext();
+        RNSharedElementStyle style = item.getStyle();
+        RNSharedElementContent content = item.getContent();
+        
         WritableMap layoutData = Arguments.createMap();
-        layoutData.putFloat();
-        //eventData.putString("message", "MyMessage");
-        eventData.putString("node", item.name);
-        eventData.putMap("layout", layoutData)
+        layoutData.putDouble("x", PixelUtil.toDIPFromPixel(style.layout.left));
+        layoutData.putDouble("y", PixelUtil.toDIPFromPixel(style.layout.top));
+        layoutData.putDouble("width", PixelUtil.toDIPFromPixel(style.layout.width()));
+        layoutData.putDouble("height", PixelUtil.toDIPFromPixel(style.layout.height()));
+        layoutData.putDouble("visibleX", PixelUtil.toDIPFromPixel(clippedLayout.left));
+        layoutData.putDouble("visibleY", PixelUtil.toDIPFromPixel(clippedLayout.top));
+        layoutData.putDouble("visibleWidth", PixelUtil.toDIPFromPixel(clippedLayout.width()));
+        layoutData.putDouble("visibleHeight", PixelUtil.toDIPFromPixel(clippedLayout.height()));
+        layoutData.putDouble("contentX", PixelUtil.toDIPFromPixel(style.layout.left)); // TODO
+        layoutData.putDouble("contentY", PixelUtil.toDIPFromPixel(style.layout.top)); // TODO
+        layoutData.putDouble("contentWidth", PixelUtil.toDIPFromPixel(style.layout.width())); // TODO
+        layoutData.putDouble("contentHeight", PixelUtil.toDIPFromPixel(style.layout.height())); // TODO
+
+        WritableMap styleData = Arguments.createMap();
+        styleData.putDouble("borderTopLeftRadius", PixelUtil.toDIPFromPixel(style.borderTopLeftRadius));
+        styleData.putDouble("borderTopRightRadius", PixelUtil.toDIPFromPixel(style.borderTopRightRadius));
+        styleData.putDouble("borderBottomLeftRadius", PixelUtil.toDIPFromPixel(style.borderBottomLeftRadius));
+        styleData.putDouble("borderBottomRightRadius", PixelUtil.toDIPFromPixel(style.borderBottomRightRadius));
+
+        WritableMap eventData = Arguments.createMap();
+        eventData.putString("node", name);
+        eventData.putMap("layout", layoutData);
+        RNSharedElementDrawable.ViewType viewType = (content != null)
+            ? RNSharedElementDrawable.getViewType(content.view, style)
+            : RNSharedElementDrawable.ViewType.NONE;
+        eventData.putString("contentType", viewType.getValue());
+        eventData.putMap("style", styleData);
+
         reactContext.getJSModule(RCTEventEmitter.class).receiveEvent(
             getId(),
-            "onMeasure",
-            eventData);*/
-
-        /*
-        - (void) fireMeasureEvent:(RNSharedElementTransitionItem*) item layout:(CGRect)layout visibleLayout:(CGRect)visibleLayout contentLayout:(CGRect)contentLayout
-{
-    if (!self.onMeasureNode) return;
-    NSDictionary* eventData = @{
-                                @"node": item.name,
-                                @"layout": @{
-                                        @"x": @(layout.origin.x),
-                                        @"y": @(layout.origin.y),
-                                        @"width": @(layout.size.width),
-                                        @"height": @(layout.height()),
-                                        @"visibleX": @(visibleLayout.origin.x),
-                                        @"visibleY": @(visibleLayout.origin.y),
-                                        @"visibleWidth": @(visibleLayout.size.width),
-                                        @"visibleHeight": @(visibleLayout.height()),
-                                        @"contentX": @(contentLayout.origin.x),
-                                        @"contentY": @(contentLayout.origin.y),
-                                        @"contentWidth": @(contentLayout.size.width),
-                                        @"contentHeight": @(contentLayout.height()),
-                                        },
-                                @"contentType": item.contentTypeName,
-                                @"style": @{
-                                        @"borderRadius": @(item.style.cornerRadius)
-                                        }
-                                };
-    self.onMeasureNode(eventData);
-}*/
+            "onMeasureNode",
+            eventData);
     }
 }
